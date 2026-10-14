@@ -20,6 +20,7 @@ SESAME_DEVICE_URL / SESAME_DEVICE_SECRET.
 
 import json
 import os
+import re
 import ssl
 import time
 import urllib.error
@@ -140,6 +141,23 @@ class Handler(BaseHTTPRequestHandler):
     def _read_body(self):
         return self.rfile.read(int(self.headers.get("Content-Length", 0)))
 
+    def _local_only(self):
+        """Reject requests not clearly aimed at this loopback server.
+
+        Blocks CSRF from arbitrary web pages (safelisted content types skip
+        CORS preflight) and DNS-rebinding (a hostile hostname resolving to
+        127.0.0.1 would carry a foreign Host header).
+        """
+        host = self.headers.get("Host", "").split(":")[0]
+        if host not in ("127.0.0.1", "localhost"):
+            self._error(403, "Forbidden")
+            return False
+        origin = self.headers.get("Origin")
+        if origin and urlparse(origin).hostname not in ("127.0.0.1", "localhost"):
+            self._error(403, "Forbidden")
+            return False
+        return True
+
     # ── GET ──────────────────────────────────────────────────────────────────
     def do_GET(self):
         path = urlparse(self.path).path
@@ -159,6 +177,8 @@ class Handler(BaseHTTPRequestHandler):
 
     # ── POST ─────────────────────────────────────────────────────────────────
     def do_POST(self):
+        if not self._local_only():
+            return
         path = urlparse(self.path).path
         if path == "/send":
             self._handle_send()
@@ -185,6 +205,10 @@ class Handler(BaseHTTPRequestHandler):
 
         extra = {}
         idem = self.headers.get("Idempotency-Key")
+        if idem:
+            # Client-controlled value later used as a filename: strip unsafe
+            # chars so it can never escape SENT_DIR.
+            idem = re.sub(r"[^A-Za-z0-9._-]", "", idem)[:128]
         if idem:
             extra["Idempotency-Key"] = idem
         recorded_at = self.headers.get("X-Recorded-At")
