@@ -8,6 +8,16 @@ UI derived from the [voce](https://github.com/29-Cu/voce) demo (record -> upload
 -> voice bar), adapted to forward audio to a Sesame device endpoint instead of a
 local transcription model.
 
+## Contents
+
+- [Features](#features)
+- [Layout](#layout)
+- [Setup](#setup)
+- [Config](#config)
+- [TLS inspection note](#tls-inspection-note)
+- [Related](#related)
+- [License](#license)
+
 ## Features
 
 - Record from the mic (MediaRecorder + live waveform)
@@ -71,3 +81,7 @@ when present.
 - `../kaiku-menubar-recorder` - native menu-bar recorder clone, kept for a
   possible future Swift port
 - Devin MCP: `sesame-voice-escort` server (needs a fresh setup-link JWT)
+
+## License
+
+MIT — © 2026 [DevArts Lab](https://devartslab.com)
