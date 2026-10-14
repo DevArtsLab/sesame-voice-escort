@@ -1,0 +1,12 @@
+# Secrets: device URL + bearer secret live here, never commit
+config.json
+
+# Local data: sent notes (audio + history, may contain filenames)
+sent/
+
+# Generated CA bundle (system roots + TLS-inspection CAs)
+certs/
+
+# Python / macOS noise
+__pycache__/
+.DS_Store

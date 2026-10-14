@@ -1,0 +1,1160 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sesame Voice Escort</title>
+    <style>
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      :root {
+        --bg: #0f0f12;
+        --surface: #1a1a20;
+        --surface2: #22222a;
+        --border: #2e2e38;
+        --accent: #7c6aff;
+        --accent-dim: #4a3faa;
+        --text: #e8e8f0;
+        --text-dim: #8888a0;
+        --danger: #ff5a6e;
+        --green: #3ddc84;
+        --radius: 14px;
+        --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      }
+
+      html,
+      body {
+        height: 100%;
+        background: var(--bg);
+        color: var(--text);
+        font-family: var(--font);
+        font-size: 15px;
+        line-height: 1.5;
+      }
+
+      .app {
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+        max-width: 680px;
+        margin: 0 auto;
+        padding: 0 16px;
+      }
+
+      header {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 18px 0 14px;
+        border-bottom: 1px solid var(--border);
+        flex-shrink: 0;
+      }
+
+      header .logo {
+        font-size: 22px;
+        font-weight: 700;
+        color: var(--accent);
+        letter-spacing: -0.5px;
+      }
+
+      header .subtitle {
+        font-size: 13px;
+        color: var(--text-dim);
+        flex: 1;
+      }
+
+      .conn-chip {
+        font-size: 12px;
+        padding: 4px 10px;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        color: var(--text-dim);
+        cursor: pointer;
+        background: var(--surface);
+        transition: border-color 0.15s;
+        white-space: nowrap;
+      }
+      .conn-chip:hover {
+        border-color: var(--accent);
+      }
+      .conn-chip.ok {
+        color: var(--green);
+        border-color: var(--green);
+      }
+      .conn-chip.bad {
+        color: var(--danger);
+        border-color: var(--danger);
+      }
+
+      .feed {
+        flex: 1;
+        overflow-y: auto;
+        padding: 20px 0;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        scrollbar-width: thin;
+        scrollbar-color: var(--border) transparent;
+      }
+
+      .feed::-webkit-scrollbar {
+        width: 4px;
+      }
+      .feed::-webkit-scrollbar-thumb {
+        background: var(--border);
+        border-radius: 4px;
+      }
+
+      .empty-hint {
+        margin: auto;
+        text-align: center;
+        color: var(--text-dim);
+        font-size: 14px;
+        max-width: 320px;
+      }
+      .empty-hint .big {
+        font-size: 34px;
+        display: block;
+        margin-bottom: 8px;
+      }
+
+      /* Note row: voice bar + meta */
+      .note {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        max-width: 380px;
+      }
+      .note.mine {
+        align-self: flex-end;
+      }
+
+      .voice-bar {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        background: var(--accent-dim);
+        border: 1px solid transparent;
+        border-radius: var(--radius);
+        border-bottom-right-radius: 4px;
+        padding: 10px 14px;
+        min-width: 260px;
+        max-width: 340px;
+      }
+      .note.failed .voice-bar {
+        background: var(--surface2);
+        border-color: var(--danger);
+      }
+
+      .play-btn {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        background: var(--accent);
+        border: none;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        transition:
+          background 0.15s,
+          transform 0.1s;
+      }
+      .play-btn:hover {
+        background: #8e7dff;
+      }
+      .play-btn:active {
+        transform: scale(0.93);
+      }
+      .play-btn svg {
+        width: 14px;
+        height: 14px;
+        fill: #fff;
+      }
+
+      .waveform-track {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        height: 28px;
+        cursor: pointer;
+      }
+
+      .waveform-bar {
+        flex: 1;
+        border-radius: 2px;
+        background: rgba(255, 255, 255, 0.18);
+        transition: background 0.1s;
+        max-width: 4px;
+      }
+      .waveform-bar.played {
+        background: rgba(255, 255, 255, 0.7);
+      }
+
+      .voice-meta {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 3px;
+        flex-shrink: 0;
+      }
+
+      .duration {
+        font-size: 12px;
+        color: rgba(255, 255, 255, 0.6);
+        font-variant-numeric: tabular-nums;
+        min-width: 32px;
+        text-align: right;
+      }
+
+      .note-meta {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 11px;
+        color: var(--text-dim);
+        padding: 0 4px;
+      }
+      .note-meta .name {
+        flex: 1;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .note-meta .st-sent {
+        color: var(--green);
+      }
+      .note-meta .st-fail {
+        color: var(--danger);
+      }
+      .note-meta .st-pend {
+        color: var(--text-dim);
+      }
+      .retry-btn {
+        border: none;
+        background: none;
+        color: var(--accent);
+        font-size: 11px;
+        font-weight: 600;
+        cursor: pointer;
+        padding: 0;
+      }
+      .retry-btn:hover {
+        text-decoration: underline;
+      }
+
+      /* Recording strip */
+      .recording-strip {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 12px 16px;
+        display: none;
+        align-items: center;
+        gap: 12px;
+        flex-shrink: 0;
+        margin-bottom: 8px;
+      }
+      .recording-strip.active {
+        display: flex;
+      }
+
+      .rec-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: var(--danger);
+        flex-shrink: 0;
+        animation: pulse 1s ease-in-out infinite;
+      }
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 1;
+          transform: scale(1);
+        }
+        50% {
+          opacity: 0.4;
+          transform: scale(0.8);
+        }
+      }
+
+      .rec-wave {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        height: 28px;
+      }
+
+      .rec-bar {
+        flex: 1;
+        max-width: 4px;
+        border-radius: 2px;
+        background: var(--accent);
+        height: 4px;
+        transition: height 0.08s ease;
+      }
+
+      .rec-timer {
+        font-size: 13px;
+        color: var(--text-dim);
+        font-variant-numeric: tabular-nums;
+        flex-shrink: 0;
+        min-width: 40px;
+        text-align: right;
+      }
+
+      .rec-stop {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background: var(--danger);
+        border: none;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        transition: transform 0.1s;
+      }
+      .rec-stop:active {
+        transform: scale(0.93);
+      }
+      .rec-stop svg {
+        width: 12px;
+        height: 12px;
+        fill: #fff;
+      }
+
+      /* Draft queue */
+      .draft-queue {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        padding: 8px 0;
+        flex-shrink: 0;
+      }
+
+      .draft-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        background: var(--surface2);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 8px 12px;
+        position: relative;
+      }
+
+      .draft-remove {
+        position: absolute;
+        top: -6px;
+        right: -6px;
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background: var(--danger);
+        border: none;
+        cursor: pointer;
+        font-size: 11px;
+        font-weight: 700;
+        color: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        line-height: 1;
+      }
+
+      .draft-label {
+        font-size: 12px;
+        color: var(--text-dim);
+        flex: 1;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .draft-dur {
+        font-size: 12px;
+        color: var(--text-dim);
+      }
+
+      /* Input bar */
+      .input-row {
+        display: flex;
+        align-items: flex-end;
+        gap: 8px;
+        padding: 12px 0 20px;
+        flex-shrink: 0;
+        border-top: 1px solid var(--border);
+      }
+
+      .drop-hint {
+        flex: 1;
+        background: var(--surface);
+        border: 1px dashed var(--border);
+        border-radius: 10px;
+        padding: 10px 14px;
+        color: var(--text-dim);
+        font-size: 13px;
+        min-height: 42px;
+        display: flex;
+        align-items: center;
+      }
+
+      .icon-btn {
+        width: 42px;
+        height: 42px;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        background: var(--surface);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        transition:
+          background 0.15s,
+          border-color 0.15s,
+          transform 0.1s;
+        color: var(--text-dim);
+      }
+      .icon-btn:hover {
+        background: var(--surface2);
+        color: var(--text);
+      }
+      .icon-btn:active {
+        transform: scale(0.93);
+      }
+      .icon-btn.recording {
+        background: var(--danger);
+        border-color: var(--danger);
+        color: #fff;
+      }
+      .icon-btn svg {
+        width: 18px;
+        height: 18px;
+      }
+
+      .send-btn {
+        background: var(--accent);
+        border-color: transparent;
+        color: #fff;
+      }
+      .send-btn:hover {
+        background: #8e7dff;
+      }
+      .send-btn:disabled {
+        opacity: 0.4;
+        cursor: default;
+      }
+
+      .status-bar {
+        font-size: 12px;
+        color: var(--text-dim);
+        text-align: center;
+        padding: 4px 0;
+        min-height: 20px;
+        flex-shrink: 0;
+      }
+      .status-bar.error {
+        color: var(--danger);
+      }
+
+      .spinner {
+        display: inline-block;
+        width: 12px;
+        height: 12px;
+        border: 2px solid rgba(255, 255, 255, 0.2);
+        border-top-color: var(--accent);
+        border-radius: 50%;
+        animation: spin 0.7s linear infinite;
+        vertical-align: middle;
+        margin-right: 5px;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      [data-tip] {
+        position: relative;
+      }
+      [data-tip]:hover::after {
+        content: attr(data-tip);
+        position: absolute;
+        bottom: calc(100% + 6px);
+        left: 50%;
+        transform: translateX(-50%);
+        background: #333;
+        color: #fff;
+        padding: 4px 8px;
+        border-radius: 6px;
+        font-size: 11px;
+        white-space: nowrap;
+        pointer-events: none;
+        z-index: 10;
+      }
+
+      /* Drag overlay */
+      .drop-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(15, 15, 18, 0.85);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 100;
+        pointer-events: none;
+      }
+      .drop-overlay.active {
+        display: flex;
+      }
+      .drop-overlay .inner {
+        border: 2px dashed var(--accent);
+        border-radius: var(--radius);
+        padding: 40px 60px;
+        font-size: 17px;
+        color: var(--accent);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <header>
+        <div class="logo">voice escort</div>
+        <div class="subtitle" id="deviceLabel">voice capture</div>
+        <button class="conn-chip" id="connChip" data-tip="Send a test ping to Sesame">
+          test connection
+        </button>
+      </header>
+
+      <div class="feed" id="feed"></div>
+
+      <div class="status-bar" id="status"></div>
+
+      <div class="recording-strip" id="recordingStrip">
+        <div class="rec-dot"></div>
+        <div class="rec-wave" id="recWave"></div>
+        <div class="rec-timer" id="recTimer">0:00</div>
+        <button class="rec-stop" id="recStop" title="Stop recording">
+          <svg viewBox="0 0 12 12">
+            <rect x="1" y="1" width="10" height="10" rx="1" />
+          </svg>
+        </button>
+      </div>
+
+      <div class="draft-queue" id="draftQueue"></div>
+
+      <div class="input-row">
+        <div class="drop-hint">
+          Record, or drop an audio file (m4a, aac, mp3, wav, ogg, opus, webm, flac; 10
+          MB max)
+        </div>
+        <button class="icon-btn" id="fileBtn" data-tip="Pick audio files">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path
+              d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"
+            />
+          </svg>
+        </button>
+        <button class="icon-btn" id="micBtn" data-tip="Record voice note">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <rect x="9" y="2" width="6" height="12" rx="3" />
+            <path d="M19 10a7 7 0 0 1-14 0" />
+            <line x1="12" y1="19" x2="12" y2="22" />
+            <line x1="8" y1="22" x2="16" y2="22" />
+          </svg>
+        </button>
+        <button class="icon-btn send-btn" id="sendBtn" data-tip="Send to Sesame">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <line x1="22" y1="2" x2="11" y2="13" />
+            <polygon points="22 2 15 22 11 13 2 9 22 2" />
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <input
+      type="file"
+      id="fileInput"
+      hidden
+      multiple
+      accept=".m4a,.aac,.mp3,.wav,.ogg,.opus,.webm,.flac,audio/*"
+    />
+
+    <div class="drop-overlay" id="dropOverlay">
+      <div class="inner">Drop audio to send to Sesame</div>
+    </div>
+
+    <script>
+      "use strict";
+
+      // ─── Constants ────────────────────────────────────────────────────────────────
+      const API_SEND = "/send";
+      const API_TEST = "/test";
+      const API_HISTORY = "/history";
+      const WAVEFORM_BARS = 48;
+      const MAX_BYTES = 10 * 1024 * 1024;
+
+      // ─── State ────────────────────────────────────────────────────────────────────
+      let mediaRecorder = null;
+      let audioChunks = [];
+      let recTimerID = null;
+      let recSeconds = 0;
+      let recStartedAt = 0;
+      let analyser = null;
+      let animFrameID = null;
+      let drafts = []; // [{id, blob, url, filename, duration, recordedAt, contentType}]
+
+      // ─── DOM refs ─────────────────────────────────────────────────────────────────
+      const feed = document.getElementById("feed");
+      const status = document.getElementById("status");
+      const micBtn = document.getElementById("micBtn");
+      const sendBtn = document.getElementById("sendBtn");
+      const fileBtn = document.getElementById("fileBtn");
+      const fileInput = document.getElementById("fileInput");
+      const recordingStrip = document.getElementById("recordingStrip");
+      const recWave = document.getElementById("recWave");
+      const recTimer = document.getElementById("recTimer");
+      const recStop = document.getElementById("recStop");
+      const draftQueue = document.getElementById("draftQueue");
+      const connChip = document.getElementById("connChip");
+      const deviceLabel = document.getElementById("deviceLabel");
+      const dropOverlay = document.getElementById("dropOverlay");
+
+      for (let i = 0; i < WAVEFORM_BARS; i++) {
+        const b = document.createElement("div");
+        b.className = "rec-bar";
+        recWave.appendChild(b);
+      }
+      const recBars = Array.from(recWave.querySelectorAll(".rec-bar"));
+
+      // ─── Helpers ──────────────────────────────────────────────────────────────────
+      function setStatus(msg, isError = false) {
+        status.innerHTML = msg;
+        status.className = "status-bar" + (isError ? " error" : "");
+      }
+
+      function fmtTime(sec) {
+        const m = Math.floor(sec / 60);
+        const s = Math.floor(sec % 60);
+        return `${m}:${s.toString().padStart(2, "0")}`;
+      }
+
+      function fmtWhen(ms) {
+        const d = new Date(ms);
+        const today = new Date();
+        const sameDay = d.toDateString() === today.toDateString();
+        const hm = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+        return sameDay
+          ? hm
+          : d.toLocaleDateString([], { month: "short", day: "numeric" }) + " " + hm;
+      }
+
+      function fmtSize(b) {
+        return b >= 1048576
+          ? (b / 1048576).toFixed(1) + " MB"
+          : Math.round(b / 1024) + " KB";
+      }
+
+      function escHtml(s) {
+        return s
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;");
+      }
+
+      function scrollBottom() {
+        feed.scrollTo({ top: feed.scrollHeight, behavior: "smooth" });
+      }
+
+      function extForMime(type) {
+        const t = (type || "").split(";")[0].trim();
+        return (
+          {
+            "audio/webm": ".webm",
+            "audio/ogg": ".ogg",
+            "audio/mp4": ".m4a",
+            "audio/mpeg": ".mp3",
+            "audio/wav": ".wav",
+            "audio/x-wav": ".wav",
+            "audio/flac": ".flac",
+          }[t] || ".webm"
+        );
+      }
+
+      function makePlaceholderWaveform(n = WAVEFORM_BARS) {
+        const vals = [];
+        for (let i = 0; i < n; i++) {
+          const pos = i / n;
+          const envelope = Math.sin(pos * Math.PI) * 0.6 + 0.15;
+          const noise = Math.random() * 0.5 + 0.5;
+          vals.push(Math.max(0.08, Math.min(1, envelope * noise)));
+        }
+        return vals;
+      }
+
+      // ─── Recording ────────────────────────────────────────────────────────────────
+      async function startRecording() {
+        if (mediaRecorder) return;
+
+        let stream;
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        } catch (e) {
+          setStatus("Microphone access denied.", true);
+          return;
+        }
+
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const source = audioCtx.createMediaStreamSource(stream);
+        analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 256;
+        source.connect(analyser);
+
+        audioChunks = [];
+        // Prefer aac/mp4 (Sesame-native) when available; fall back to webm/ogg.
+        const mimeType =
+          [
+            "audio/mp4",
+            "audio/aac",
+            "audio/webm;codecs=opus",
+            "audio/webm",
+            "audio/ogg",
+          ].find((t) => MediaRecorder.isTypeSupported(t)) || "";
+
+        mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+        mediaRecorder.ondataavailable = (e) => {
+          if (e.data.size > 0) audioChunks.push(e.data);
+        };
+        mediaRecorder.onstop = () => {
+          stream.getTracks().forEach((t) => t.stop());
+          audioCtx.close();
+          finishRecording();
+        };
+        mediaRecorder.start(100);
+        recStartedAt = Date.now();
+
+        recSeconds = 0;
+        recTimer.textContent = "0:00";
+        recTimerID = setInterval(() => {
+          recSeconds++;
+          recTimer.textContent = fmtTime(recSeconds);
+        }, 1000);
+
+        const buf = new Uint8Array(analyser.frequencyBinCount);
+        function drawWave() {
+          animFrameID = requestAnimationFrame(drawWave);
+          analyser.getByteFrequencyData(buf);
+          recBars.forEach((bar, i) => {
+            const idx = Math.floor((i * buf.length) / recBars.length);
+            const v = buf[idx] / 255;
+            bar.style.height = Math.max(4, Math.round(v * 26)) + "px";
+          });
+        }
+        drawWave();
+
+        recordingStrip.classList.add("active");
+        micBtn.classList.add("recording");
+        setStatus("Recording...");
+      }
+
+      function stopRecording() {
+        if (!mediaRecorder) return;
+        clearInterval(recTimerID);
+        cancelAnimationFrame(animFrameID);
+        mediaRecorder.stop();
+        mediaRecorder = null;
+        recordingStrip.classList.remove("active");
+        micBtn.classList.remove("recording");
+        recBars.forEach((b) => (b.style.height = "4px"));
+      }
+
+      function finishRecording() {
+        const duration = recSeconds;
+        const type = audioChunks[0]?.type || "audio/webm";
+        const blob = new Blob(audioChunks, { type });
+        audioChunks = [];
+
+        addDraft(
+          blob,
+          `note-${new Date().toISOString().replace(/[:.]/g, "-")}${extForMime(type)}`,
+          duration,
+          recStartedAt,
+          type,
+        );
+        setStatus("Note queued. Send it or record another.");
+      }
+
+      // ─── Drafts ───────────────────────────────────────────────────────────────────
+      function addDraft(blob, filename, duration, recordedAt, contentType) {
+        const url = URL.createObjectURL(blob);
+        drafts.push({
+          id: crypto.randomUUID(),
+          blob,
+          url,
+          filename,
+          duration: duration || 0,
+          recordedAt: recordedAt || Date.now(),
+          contentType: contentType || blob.type || "application/octet-stream",
+        });
+        renderDraftQueue();
+      }
+
+      function addFileDraft(file) {
+        if (file.size > MAX_BYTES) {
+          setStatus(
+            `${file.name}: ${fmtSize(file.size)} exceeds the 10 MB limit.`,
+            true,
+          );
+          return;
+        }
+        if (file.size === 0) {
+          setStatus(`${file.name}: empty file.`, true);
+          return;
+        }
+        addDraft(file, file.name, 0, file.lastModified || Date.now(), file.type);
+      }
+
+      function renderDraftQueue() {
+        draftQueue.innerHTML = "";
+        drafts.forEach((d, i) => {
+          const el = document.createElement("div");
+          el.className = "draft-item";
+          el.innerHTML = `
+      <span style="font-size:16px;">&#127908;</span>
+      <span class="draft-label">${escHtml(d.filename)} &middot; ${fmtSize(d.blob.size)}</span>
+      <span class="draft-dur">${d.duration ? fmtTime(d.duration) : ""}</span>
+      <button class="draft-remove" data-idx="${i}">&times;</button>
+    `;
+          draftQueue.appendChild(el);
+        });
+        draftQueue.querySelectorAll(".draft-remove").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            const idx = parseInt(btn.dataset.idx);
+            URL.revokeObjectURL(drafts[idx].url);
+            drafts.splice(idx, 1);
+            renderDraftQueue();
+          });
+        });
+        sendBtn.disabled = drafts.length === 0;
+      }
+
+      // ─── Sending ──────────────────────────────────────────────────────────────────
+      async function sendDraft(draft, noteEl) {
+        const stEl = noteEl.querySelector(".st");
+        stEl.textContent = "sending...";
+        stEl.className = "st st-pend";
+
+        try {
+          const res = await fetch(API_SEND, {
+            method: "POST",
+            headers: {
+              "Content-Type": draft.contentType,
+              "X-Filename": draft.filename,
+              "X-Recorded-At": String(draft.recordedAt),
+              "Idempotency-Key": draft.id,
+            },
+            body: draft.blob,
+          });
+          const data = await res.json().catch(() => ({}));
+          if (res.ok && data.ok) {
+            stEl.textContent = "sent";
+            stEl.className = "st st-sent";
+            noteEl.classList.remove("failed");
+            return true;
+          }
+          throw new Error(data.upstream_error || data.error || `HTTP ${res.status}`);
+        } catch (e) {
+          stEl.textContent = "failed";
+          stEl.className = "st st-fail";
+          noteEl.classList.add("failed");
+          noteEl.querySelector(".retry-btn").style.display = "";
+          setStatus(`Failed: ${e.message}`, true);
+          return false;
+        }
+      }
+
+      async function sendAll() {
+        if (drafts.length === 0 || mediaRecorder) return;
+        sendBtn.disabled = true;
+
+        for (const d of drafts.slice()) {
+          setStatus(`<span class="spinner"></span>Sending ${escHtml(d.filename)}...`);
+          const noteEl = appendNote({
+            url: d.url,
+            duration: d.duration,
+            filename: d.filename,
+            sentAt: Date.now(),
+            status: "sending",
+            draftId: d.id,
+          });
+          await sendDraft(d, noteEl);
+          scrollBottom();
+        }
+
+        // Drop drafts that made it; keep failures retryable
+        drafts = drafts.filter((d) =>
+          feed.querySelector(`[data-draft-id="${d.id}"] .st-fail`),
+        );
+        renderDraftQueue();
+        sendBtn.disabled = drafts.length === 0;
+        setStatus("");
+      }
+
+      // ─── Note rendering ───────────────────────────────────────────────────────────
+      function createVoiceBar(url, duration) {
+        const waveVals = makePlaceholderWaveform(WAVEFORM_BARS);
+
+        const bar = document.createElement("div");
+        bar.className = "voice-bar";
+
+        const playBtn = document.createElement("button");
+        playBtn.className = "play-btn";
+        playBtn.innerHTML = `<svg viewBox="0 0 16 16"><polygon points="4,2 14,8 4,14"/></svg>`;
+
+        const track = document.createElement("div");
+        track.className = "waveform-track";
+        waveVals.forEach((v) => {
+          const b = document.createElement("div");
+          b.className = "waveform-bar";
+          b.style.height = Math.max(4, Math.round(v * 24)) + "px";
+          track.appendChild(b);
+        });
+        const bars = Array.from(track.querySelectorAll(".waveform-bar"));
+
+        const meta = document.createElement("div");
+        meta.className = "voice-meta";
+        const durEl = document.createElement("div");
+        durEl.className = "duration";
+        durEl.textContent = duration ? fmtTime(duration) : "--:--";
+        meta.appendChild(durEl);
+
+        bar.appendChild(playBtn);
+        bar.appendChild(track);
+        bar.appendChild(meta);
+
+        const audio = new Audio(url);
+        audio.addEventListener("loadedmetadata", () => {
+          if (!duration && isFinite(audio.duration))
+            durEl.textContent = fmtTime(audio.duration);
+        });
+        let playing = false;
+        let progressAnim = null;
+
+        function updateProgress() {
+          if (!audio.duration || !isFinite(audio.duration)) return;
+          const pct = audio.currentTime / audio.duration;
+          const idx = Math.floor(pct * bars.length);
+          bars.forEach((b, i) => b.classList.toggle("played", i < idx));
+          durEl.textContent = fmtTime(Math.floor(audio.currentTime));
+        }
+
+        playBtn.addEventListener("click", () => {
+          if (playing) {
+            audio.pause();
+            playing = false;
+            cancelAnimationFrame(progressAnim);
+            playBtn.innerHTML = `<svg viewBox="0 0 16 16"><polygon points="4,2 14,8 4,14"/></svg>`;
+          } else {
+            audio.play();
+            playing = true;
+            playBtn.innerHTML = `<svg viewBox="0 0 16 16"><rect x="3" y="2" width="4" height="12"/><rect x="9" y="2" width="4" height="12"/></svg>`;
+            (function tick() {
+              updateProgress();
+              if (playing) progressAnim = requestAnimationFrame(tick);
+            })();
+          }
+        });
+
+        track.addEventListener("click", (e) => {
+          if (!audio.duration || !isFinite(audio.duration)) return;
+          const rect = track.getBoundingClientRect();
+          audio.currentTime = ((e.clientX - rect.left) / rect.width) * audio.duration;
+          updateProgress();
+        });
+
+        audio.addEventListener("ended", () => {
+          playing = false;
+          cancelAnimationFrame(progressAnim);
+          playBtn.innerHTML = `<svg viewBox="0 0 16 16"><polygon points="4,2 14,8 4,14"/></svg>`;
+          bars.forEach((b) => b.classList.remove("played"));
+          durEl.textContent = duration
+            ? fmtTime(duration)
+            : fmtTime(audio.duration || 0);
+        });
+
+        return bar;
+      }
+
+      function appendNote(opts) {
+        // opts: {url, duration, filename, sentAt, status, draftId}
+        const note = document.createElement("div");
+        note.className = "note mine" + (opts.status === "failed" ? " failed" : "");
+        if (opts.draftId) note.dataset.draftId = opts.draftId;
+
+        note.appendChild(createVoiceBar(opts.url, opts.duration));
+
+        const meta = document.createElement("div");
+        meta.className = "note-meta";
+        const stClass =
+          { sent: "st-sent", failed: "st-fail", sending: "st-pend" }[opts.status] ||
+          "st-pend";
+        meta.innerHTML = `
+    <span class="name">${escHtml(opts.filename)}</span>
+    <span>${fmtWhen(opts.sentAt)}</span>
+    <span class="st ${stClass}">${opts.status}</span>
+    <button class="retry-btn" style="display:none;">retry</button>
+  `;
+        note.appendChild(meta);
+
+        note.querySelector(".retry-btn").addEventListener("click", () => {
+          const d = drafts.find((x) => x.id === opts.draftId);
+          if (d) sendDraft(d, note);
+        });
+
+        feed.appendChild(note);
+        scrollBottom();
+        return note;
+      }
+
+      function renderEmptyHint() {
+        if (feed.children.length === 0) {
+          const hint = document.createElement("div");
+          hint.className = "empty-hint";
+          hint.innerHTML = `<span class="big">&#127908;</span>
+      Record a voice note or drop an audio file. It uploads to your Sesame agent and gets transcribed there.`;
+          feed.appendChild(hint);
+        }
+      }
+
+      // ─── History ──────────────────────────────────────────────────────────────────
+      async function loadHistory() {
+        try {
+          const res = await fetch(API_HISTORY);
+          if (!res.ok) return;
+          const items = await res.json();
+          items.forEach((h) => {
+            appendNote({
+              url: h.stored ? `/audio/${h.stored}` : "about:blank",
+              duration: 0,
+              filename: h.filename + (h.stored ? "" : " (copy unavailable)"),
+              sentAt: h.sent_at,
+              status: h.ok ? "sent" : "failed",
+            });
+          });
+        } catch (e) {
+          /* offline history is optional */
+        }
+        renderEmptyHint();
+      }
+
+      // ─── Connection test ──────────────────────────────────────────────────────────
+      async function testConnection() {
+        connChip.textContent = "testing...";
+        connChip.className = "conn-chip";
+        try {
+          const res = await fetch(API_TEST, { method: "POST" });
+          const data = await res.json();
+          if (data.ok) {
+            connChip.textContent = "connected";
+            connChip.classList.add("ok");
+          } else {
+            connChip.textContent = `error ${data.upstream_status}`;
+            connChip.classList.add("bad");
+          }
+        } catch (e) {
+          connChip.textContent = "server down";
+          connChip.classList.add("bad");
+        }
+      }
+
+      async function loadHealth() {
+        try {
+          const res = await fetch("/health");
+          const data = await res.json();
+          deviceLabel.textContent = data.configured
+            ? `to ${data.device_name} · voice capture`
+            : "device not configured";
+          if (!data.configured)
+            setStatus("No device configured: fill in config.json.", true);
+        } catch (e) {
+          /* ignore */
+        }
+      }
+
+      // ─── File pick + drag/drop ────────────────────────────────────────────────────
+      fileBtn.addEventListener("click", () => fileInput.click());
+      fileInput.addEventListener("change", () => {
+        Array.from(fileInput.files).forEach(addFileDraft);
+        fileInput.value = "";
+      });
+
+      let dragDepth = 0;
+      window.addEventListener("dragenter", (e) => {
+        if (![...e.dataTransfer.types].includes("Files")) return;
+        dragDepth++;
+        dropOverlay.classList.add("active");
+      });
+      window.addEventListener("dragleave", () => {
+        if (--dragDepth <= 0) {
+          dragDepth = 0;
+          dropOverlay.classList.remove("active");
+        }
+      });
+      window.addEventListener("dragover", (e) => e.preventDefault());
+      window.addEventListener("drop", (e) => {
+        e.preventDefault();
+        dragDepth = 0;
+        dropOverlay.classList.remove("active");
+        Array.from(e.dataTransfer.files).forEach(addFileDraft);
+      });
+
+      // ─── Events ───────────────────────────────────────────────────────────────────
+      micBtn.addEventListener("click", () =>
+        mediaRecorder ? stopRecording() : startRecording(),
+      );
+      recStop.addEventListener("click", stopRecording);
+      sendBtn.addEventListener("click", sendAll);
+      connChip.addEventListener("click", testConnection);
+
+      // ─── Init ─────────────────────────────────────────────────────────────────────
+      loadHealth();
+      loadHistory();
+      renderDraftQueue();
+    </script>
+  </body>
+</html>
