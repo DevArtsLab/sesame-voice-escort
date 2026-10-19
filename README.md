@@ -73,9 +73,13 @@ settings page in the Sesame app.
 {
   "device_url": "https://capture.sesameai.app/v1/devices/<device-id>",
   "device_secret": "sesame_whsec_<secret>",
-  "device_name": "Mac"
+  "device_name": "Mac",
+  "tts_voice": ""
 }
 ```
+
+`tts_voice` is optional: any `say -v` name (see `say -v '?'`), used by the
+type-and-speak input.
 
 ## TLS inspection note
 
@@ -91,6 +95,7 @@ when present.
 - `../kaiku-menubar-recorder` - native menu-bar recorder clone, kept for a
   possible future Swift port
 - Devin MCP: `sesame-voice-escort` server (needs a fresh setup-link JWT)
+- `ROADMAP.md` - capability inventory and next-steps path
 
 ## License
 
