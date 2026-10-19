@@ -30,11 +30,9 @@ local transcription model.
 - Local history of sent notes with in-page playback (`sent/`)
 - Device secret stays server-side; the browser never sees it
 
-## Diagram
-
-[![Architecture diagram](https://gitdiagram.com/diagram-badge.svg)](https://gitdiagram.com/devartslab/sesame-voice-escort?utm_source=readme&utm_medium=badge)
-
 ## Architecture
+
+[![Diagram](https://gitdiagram.com/diagram-badge.svg)](https://gitdiagram.com/devartslab/sesame-voice-escort?utm_source=readme&utm_medium=badge)
 
 ```
 browser (index.html) ←→ server.py (localhost) ←→ Sesame device API
