@@ -1,5 +1,6 @@
 {
   "device_url": "https://capture.sesameai.app/v1/devices/<your-device-id>",
   "device_secret": "sesame_whsec_<your-device-secret>",
-  "device_name": "Mac"
+  "device_name": "Mac",
+  "tts_voice": ""
 }

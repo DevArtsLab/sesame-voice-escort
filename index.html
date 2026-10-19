@@ -404,11 +404,20 @@
         border: 1px dashed var(--border);
         border-radius: 10px;
         padding: 10px 14px;
-        color: var(--text-dim);
+        color: var(--text);
+        font-family: inherit;
         font-size: 13px;
         min-height: 42px;
         display: flex;
         align-items: center;
+        min-width: 0;
+      }
+      input.drop-hint::placeholder {
+        color: var(--text-dim);
+      }
+      input.drop-hint:focus {
+        outline: none;
+        border-color: var(--accent);
       }
 
       .icon-btn {
@@ -557,10 +566,13 @@
       <div class="draft-queue" id="draftQueue"></div>
 
       <div class="input-row">
-        <div class="drop-hint">
-          Record, or drop an audio file (m4a, aac, mp3, wav, ogg, opus, webm, flac; 10
-          MB max)
-        </div>
+        <input
+          class="drop-hint"
+          id="textInput"
+          type="text"
+          maxlength="8000"
+          placeholder="Record, drop an audio file, or type a message to speak"
+        />
         <button class="icon-btn" id="fileBtn" data-tip="Pick audio files">
           <svg
             viewBox="0 0 24 24"
@@ -623,6 +635,7 @@
 
       // ─── Constants ────────────────────────────────────────────────────────────────
       const API_SEND = "/send";
+      const API_SPEAK = "/speak";
       const API_TEST = "/test";
       const API_HISTORY = "/history";
       const WAVEFORM_BARS = 48;
@@ -650,6 +663,7 @@
       const recTimer = document.getElementById("recTimer");
       const recStop = document.getElementById("recStop");
       const draftQueue = document.getElementById("draftQueue");
+      const textInput = document.getElementById("textInput");
       const connChip = document.getElementById("connChip");
       const deviceLabel = document.getElementById("deviceLabel");
       const dropOverlay = document.getElementById("dropOverlay");
@@ -870,7 +884,11 @@
             renderDraftQueue();
           });
         });
-        sendBtn.disabled = drafts.length === 0;
+        updateSendBtn();
+      }
+
+      function updateSendBtn() {
+        sendBtn.disabled = drafts.length === 0 && !textInput.value.trim();
       }
 
       // ─── Sending ──────────────────────────────────────────────────────────────────
@@ -931,8 +949,64 @@
           feed.querySelector(`[data-draft-id="${d.id}"] .st-fail`),
         );
         renderDraftQueue();
-        sendBtn.disabled = drafts.length === 0;
+        updateSendBtn();
         setStatus("");
+      }
+
+      // ─── Text-to-speech ───────────────────────────────────────────────────────────
+      async function sendText() {
+        const text = textInput.value.trim();
+        if (!text || mediaRecorder) return;
+        textInput.value = "";
+        updateSendBtn();
+
+        const short = text.length > 60 ? text.slice(0, 57) + "..." : text;
+        const noteEl = appendNote({
+          url: "about:blank",
+          duration: 0,
+          filename: `say: ${short}`,
+          sentAt: Date.now(),
+          status: "sending",
+        });
+        noteEl.dataset.ttsText = text;
+        await sendTextNote(text, noteEl);
+        updateSendBtn();
+      }
+
+      async function sendTextNote(text, noteEl) {
+        const stEl = noteEl.querySelector(".st");
+        stEl.textContent = "speaking...";
+        stEl.className = "st st-pend";
+
+        try {
+          const res = await fetch(API_SPEAK, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Idempotency-Key": crypto.randomUUID(),
+            },
+            body: JSON.stringify({ text }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (res.ok && data.ok) {
+            stEl.textContent = "sent";
+            stEl.className = "st st-sent";
+            noteEl.classList.remove("failed");
+            if (data.stored) {
+              const old = noteEl.querySelector(".voice-bar");
+              noteEl.replaceChild(createVoiceBar(`/audio/${data.stored}`, 0), old);
+            }
+            return true;
+          }
+          throw new Error(data.upstream_error || data.error || `HTTP ${res.status}`);
+        } catch (e) {
+          stEl.textContent = "failed";
+          stEl.className = "st st-fail";
+          noteEl.classList.add("failed");
+          noteEl.querySelector(".retry-btn").style.display = "";
+          setStatus(`Failed: ${e.message}`, true);
+          return false;
+        }
       }
 
       // ─── Note rendering ───────────────────────────────────────────────────────────
@@ -1044,6 +1118,7 @@
         note.querySelector(".retry-btn").addEventListener("click", () => {
           const d = drafts.find((x) => x.id === opts.draftId);
           if (d) sendDraft(d, note);
+          else if (note.dataset.ttsText) sendTextNote(note.dataset.ttsText, note);
         });
 
         feed.appendChild(note);
@@ -1056,7 +1131,7 @@
           const hint = document.createElement("div");
           hint.className = "empty-hint";
           hint.innerHTML = `<span class="big">&#127908;</span>
-      Record a voice note or drop an audio file. It uploads to your Sesame agent and gets transcribed there.`;
+      Record a voice note, drop an audio file, or type text to speak. It uploads to your Sesame agent and gets transcribed there.`;
           feed.appendChild(hint);
         }
       }
@@ -1071,7 +1146,9 @@
             appendNote({
               url: h.stored ? `/audio/${h.stored}` : "about:blank",
               duration: 0,
-              filename: h.filename + (h.stored ? "" : " (copy unavailable)"),
+              filename:
+                (h.text ? `say: ${h.text}` : h.filename) +
+                (h.stored ? "" : " (copy unavailable)"),
               sentAt: h.sent_at,
               status: h.ok ? "sent" : "failed",
             });
@@ -1148,7 +1225,13 @@
         mediaRecorder ? stopRecording() : startRecording(),
       );
       recStop.addEventListener("click", stopRecording);
-      sendBtn.addEventListener("click", sendAll);
+      sendBtn.addEventListener("click", () =>
+        textInput.value.trim() ? sendText() : sendAll(),
+      );
+      textInput.addEventListener("input", updateSendBtn);
+      textInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && textInput.value.trim()) sendText();
+      });
       connChip.addEventListener("click", testConnection);
 
       // ─── Init ─────────────────────────────────────────────────────────────────────

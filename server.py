@@ -10,6 +10,7 @@ Endpoints:
   GET  /            -> index.html
   GET  /health      -> {"configured": bool, "device_name": str}
   POST /send        -> raw audio body; headers: X-Filename, X-Recorded-At, Idempotency-Key
+  POST /speak       -> JSON {"text": str}; spoken via macOS `say` to m4a, then sent
   POST /test        -> forwards X-Voice-Capture-Test ping
   GET  /history     -> JSON list of sent notes
   GET  /audio/<id>  -> stored copy of a sent note
@@ -22,6 +23,7 @@ import json
 import os
 import re
 import ssl
+import subprocess
 import time
 import urllib.error
 import urllib.request
@@ -59,6 +61,7 @@ def load_config():
         "device_url": os.environ.get("SESAME_DEVICE_URL") or cfg.get("device_url", ""),
         "device_secret": os.environ.get("SESAME_DEVICE_SECRET") or cfg.get("device_secret", ""),
         "device_name": cfg.get("device_name", "device"),
+        "tts_voice": cfg.get("tts_voice", ""),
     }
 
 
@@ -182,38 +185,84 @@ class Handler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path
         if path == "/send":
             self._handle_send()
+        elif path == "/speak":
+            self._handle_speak()
         elif path == "/test":
             self._handle_test()
         else:
             self._error(404, "Not found")
 
+    def _idem_key(self):
+        idem = self.headers.get("Idempotency-Key")
+        if idem:
+            # Client-controlled value later used as a filename: strip unsafe
+            # chars so it can never escape SENT_DIR.
+            idem = re.sub(r"[^A-Za-z0-9._-]", "", idem)[:128]
+        return idem
+
     def _handle_send(self):
         audio = self._read_body()
         if not audio:
             return self._error(400, "Empty body")
-        if len(audio) > MAX_BYTES:
-            return self._error(413, f"{len(audio)} bytes exceeds the 10 MB limit")
 
         filename = self.headers.get("X-Filename", "note.webm")
         content_type = self.headers.get("Content-Type", "").split(";")[0].strip()
         if content_type not in EXT_TO_MIME.values():
             content_type = mime_for_filename(filename) or "application/octet-stream"
 
+        recorded_at = self.headers.get("X-Recorded-At")
+        self._send_audio(audio, filename, content_type,
+                         self._idem_key(),
+                         recorded_at if recorded_at and recorded_at.isdigit() else None)
+
+    def _handle_speak(self):
+        try:
+            body = json.loads(self._read_body() or b"{}")
+        except json.JSONDecodeError:
+            return self._error(400, "Bad JSON")
+        text = (body.get("text") or "").strip()
+        if not text:
+            return self._error(400, "Empty text")
+        if len(text) > 8000:
+            return self._error(413, "Text exceeds the 8000 character limit")
+
+        ts = int(time.time() * 1000)
+        tmp = SENT_DIR / f".tts-{os.getpid()}-{ts}.m4a"
+        cmd = ["say", "-o", str(tmp)]
+        if CONFIG["tts_voice"]:
+            cmd += ["-v", CONFIG["tts_voice"]]
+        try:
+            # Text goes via stdin so it can never be parsed as a say flag.
+            proc = subprocess.run(cmd, input=text.encode("utf-8"),
+                                  capture_output=True, timeout=120)
+        except FileNotFoundError:
+            return self._error(501, "macOS 'say' command not available")
+        except subprocess.TimeoutExpired:
+            return self._error(504, "'say' timed out")
+        if proc.returncode != 0 or not tmp.exists() or tmp.stat().st_size == 0:
+            tmp.unlink(missing_ok=True)
+            err = proc.stderr.decode("utf-8", "replace")[:200]
+            return self._error(500, f"'say' failed: {err or 'no output produced'}")
+        audio = tmp.read_bytes()
+        tmp.unlink(missing_ok=True)
+
+        snippet = text if len(text) <= 60 else text[:57] + "..."
+        self._send_audio(audio, f"say-{ts}.m4a", "audio/mp4",
+                         self._idem_key(), ts, {"text": snippet})
+
+    def _send_audio(self, audio, filename, content_type, idem, recorded_at, extra_fields=None):
+        if len(audio) > MAX_BYTES:
+            return self._error(413, f"{len(audio)} bytes exceeds the 10 MB limit")
+
         ext = Path(filename).suffix.lower()
         if ext not in EXT_TO_MIME:
             ext = MIME_TO_EXT.get(content_type, ".webm")
 
         extra = {}
-        idem = self.headers.get("Idempotency-Key")
-        if idem:
-            # Client-controlled value later used as a filename: strip unsafe
-            # chars so it can never escape SENT_DIR.
-            idem = re.sub(r"[^A-Za-z0-9._-]", "", idem)[:128]
         if idem:
             extra["Idempotency-Key"] = idem
-        recorded_at = self.headers.get("X-Recorded-At")
-        if recorded_at and recorded_at.isdigit():
-            extra["X-Recorded-At"] = recorded_at
+        if recorded_at:
+            extra["X-Recorded-At"] = str(recorded_at)
 
         status, upstream = post_to_sesame(audio, content_type, extra)
         ok = 200 <= status < 300
@@ -224,10 +273,12 @@ class Handler(BaseHTTPRequestHandler):
             "content_type": content_type,
             "size": len(audio),
             "sent_at": int(time.time() * 1000),
-            "recorded_at": int(recorded_at) if recorded_at and recorded_at.isdigit() else None,
+            "recorded_at": int(recorded_at) if recorded_at else None,
             "ok": ok,
             "upstream_status": status,
         }
+        if extra_fields:
+            entry.update(extra_fields)
         if ok:
             stored = f"{entry['id']}{ext}"
             (SENT_DIR / stored).write_bytes(audio)

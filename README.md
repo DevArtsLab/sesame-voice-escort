@@ -22,6 +22,7 @@ local transcription model.
 ## Features
 
 - Record from the mic (MediaRecorder + live waveform)
+- Type text and send it as speech (macOS `say` -> m4a -> same upload path)
 - Upload existing files: picker, multi-select, or drag and drop anywhere
 - Formats: m4a, aac, mp3, wav, ogg, opus, webm, flac (10 MB per note, enforced)
 - Test-connection ping (`X-Voice-Capture-Test`)
