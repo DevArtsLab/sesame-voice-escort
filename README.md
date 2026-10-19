@@ -1,4 +1,4 @@
-# sesame-voice-escort
+# Sesame Voice Escort
 
 Local send box for [Sesame Voice Capture](https://capture.sesameai.app): record
 voice notes or drop existing audio files, and they upload to your Sesame agent,
@@ -11,6 +11,7 @@ local transcription model.
 ## Contents
 
 - [Features](#features)
+- [Architecture](#architecture)
 - [Layout](#layout)
 - [Setup](#setup)
 - [Config](#config)
@@ -28,6 +29,16 @@ local transcription model.
 - `X-Recorded-At` backdating from file mtime / record start time
 - Local history of sent notes with in-page playback (`sent/`)
 - Device secret stays server-side; the browser never sees it
+
+## Diagram
+
+[![Architecture diagram](https://gitdiagram.com/diagram-badge.svg)](https://gitdiagram.com/devartslab/sesame-voice-escort?utm_source=readme&utm_medium=badge)
+
+## Architecture
+
+```
+browser (index.html) ←→ server.py (localhost) ←→ Sesame device API
+```
 
 ## Layout
 
